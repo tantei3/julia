@@ -71,7 +71,7 @@ Artifacts = get(Base.loaded_modules,
 if Artifacts !== nothing
     precompile_script *= """
     using Artifacts, Base.BinaryPlatforms
-    artifacts_toml = abspath($(repr(joinpath(Sys.STDLIB, "Artifacts", "test", "Artifats.toml"))))
+    artifacts_toml = abspath($(repr(joinpath(Sys.STDLIB, "Artifacts", "test", "Artifacts.toml"))))
     cd(() -> @artifact_str("c_simple"), dirname(artifacts_toml))
     artifacts = Artifacts.load_artifacts_toml(artifacts_toml)
     platforms = [Artifacts.unpack_platform(e, "c_simple", artifacts_toml) for e in artifacts["c_simple"]]

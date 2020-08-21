@@ -591,7 +591,7 @@ function Base.parse(::Type{Platform}, triplet::AbstractString; validate_strict::
         "libgfortran4" => "(-libgfortran4)|(-gcc7)",
         "libgfortran5" => "(-libgfortran5)|(-gcc8)",
     )
-    libstdcxx_version_mapping = Dict(
+    libstdcxx_version_mapping = Dict{String,String}(
         "libstdcxx_nothing" => "",
         # This is sadly easier than parsing out the digit directly
         ("libstdcxx$(idx)" => "-libstdcxx$(idx)" for idx in 18:26)...,
@@ -903,7 +903,7 @@ relevant comparison strategies set to host platform mode.  This is equivalent to
 """
 function Platform()
     global default_host_platform
-    return default_host_platform
+    return default_host_platform::Platform
 end
 
 """
