@@ -93,9 +93,9 @@ end
     @test triplet(P("armv6l", "linux"; call_abi="eabi")) == "armv6l-linux-gnueabi"
     @test triplet(P("x86_64", "linux")) == "x86_64-linux-gnu"
     @test triplet(P("armv6l", "linux")) == "armv6l-linux-gnueabihf"
-    @test triplet(P("x86_64", "macos")) == "x86_64-apple-darwin14"
-    @test triplet(P("x86_64", "freebsd")) == "x86_64-unknown-freebsd11.1"
-    @test triplet(P("i686", "freebsd")) == "i686-unknown-freebsd11.1"
+    @test triplet(P("x86_64", "macos")) == "x86_64-apple-darwin"
+    @test triplet(P("x86_64", "freebsd")) == "x86_64-unknown-freebsd"
+    @test triplet(P("i686", "freebsd")) == "i686-unknown-freebsd"
 
     # Now test libgfortran/cxxstring ABIs
     @test triplet(P("x86_64", "linux"; libgfortran_version=v"3", cxxstring_abi="cxx11")) == "x86_64-linux-gnu-libgfortran3-cxx11"
@@ -114,8 +114,9 @@ end
     @test R("x86_64-linux-gnu") == P("x86_64", "linux")
     @test R("x86_64-linux-musl") == P("x86_64", "linux"; libc="musl")
     @test R("i686-unknown-linux-gnu") == P("i686", "linux")
-    @test R("x86_64-apple-darwin14") == P("x86_64", "macos")
-    @test R("x86_64-apple-darwin17.0.0") == P("x86_64", "macos")
+    @test R("x86_64-apple-darwin") == P("x86_64", "macos")
+    @test R("x86_64-apple-darwin14") == P("x86_64", "macos"; os_version="14")
+    @test R("x86_64-apple-darwin17.0.0") == P("x86_64", "macos"; os_version="17")
     @test R("armv7l-pc-linux-gnueabihf") == P("armv7l", "linux")
     @test R("armv7l-linux-musleabihf") == P("armv7l", "linux"; libc="musl")
     @test R("armv6l-linux-gnueabi") == P("armv6l", "linux"; call_abi="eabi")
@@ -128,11 +129,12 @@ end
     @test R("i686-w64-mingw32") == P("i686", "windows")
 
     # FreeBSD has lots of arch names that don't match elsewhere
-    @test R("x86_64-unknown-freebsd11.1") == P("x86_64", "freebsd")
-    @test R("i686-unknown-freebsd11.1") == P("i686", "freebsd")
-    @test R("amd64-unknown-freebsd12.0") == P("x86_64", "freebsd")
-    @test R("i386-unknown-freebsd10.3") == P("i686", "freebsd")
-    @test R("arm64-apple-darwin20.0") == P("aarch64", "macos")
+    @test R("x86_64-unknown-freebsd11.1") == P("x86_64", "freebsd"; os_version=v"11.1")
+    @test R("i686-unknown-freebsd11.1") == P("i686", "freebsd"; os_version=v"11.1")
+    @test R("amd64-unknown-freebsd12.0") == P("x86_64", "freebsd"; os_version=v"12.0")
+    @test R("i386-unknown-freebsd10.3") == P("i686", "freebsd"; os_version=v"10.3")
+    @test R("aarch64-apple-darwin18.7") == P("aarch64", "macos"; os_version=v"18.7")
+    @test R("arm64-apple-darwin20") == P("aarch64", "macos"; os_version=v"20")
 
     # Test inclusion of ABI stuff, both old-style and new-style
     @test R("x86_64-linux-gnu-gcc7") == P("x86_64", "linux"; libgfortran_version=v"4")
@@ -176,6 +178,12 @@ end
         @test platforms_match(linux, triplet(p))
     end
 
+    # Test that Julia version is matched only on major.minor by default
+    @test platforms_match(P("x86_64", "linux"; julia_version=v"1.5.0"),
+                          P("x86_64", "linux"; julia_version=v"1.5.1"))
+    @test !platforms_match(P("x86_64", "linux"; julia_version=v"1.5.0"),
+                           P("x86_64", "linux"; julia_version=v"1.6.0"))
+
     # Ensure many of these things do NOT match
     @test !platforms_match(linux, P("i686", "linux"))
     @test !platforms_match(linux, P("x86_64", "windows"))
@@ -191,6 +199,17 @@ end
         b = P(arch, "linux"; kwargs...)
         @test !platforms_match(a, b)
     end
+
+    # Test version bounds with HostPlatform()
+    host = HostPlatform(P("x86_64", "macos"; os_version="14", libstdcxx_version=v"3.4.26"))
+    @test platforms_match(host, P("x86_64", "macos"))
+    @test platforms_match(host, P("x86_64", "macos"; os_version="14"))
+    @test platforms_match(host, P("x86_64", "macos"; os_version="13"))
+    @test !platforms_match(host, P("x86_64", "macos"; os_version="15"))
+    @test platforms_match(host, P("x86_64", "macos"; libstdcxx_version="3.4.18"))
+    @test platforms_match(host, P("x86_64", "macos"; os_version=v"10", libstdcxx_version="3.4.18"))
+    @test !platforms_match(host, P("x86_64", "macos"; os_version=v"10", libstdcxx_version="3.4.27"))
+    @test !platforms_match(host, P("x86_64", "macos"; os_version=v"14", libstdcxx_version=v"4"))
 end
 
 @testset "DL name/version parsing" begin
