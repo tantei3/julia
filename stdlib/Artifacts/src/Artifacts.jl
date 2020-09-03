@@ -48,10 +48,10 @@ current set of depot paths and the current artifact directory override via the m
 """
 function artifacts_dirs(args...)
     if ARTIFACTS_DIR_OVERRIDE[] === nothing
-        return [abspath(depot, "artifacts", args...) for depot in Base.DEPOT_PATH]
+        return String[abspath(depot, "artifacts", args...) for depot in Base.DEPOT_PATH]
     else
         # If we've been given an override, use _only_ that directory.
-        return [abspath(ARTIFACTS_DIR_OVERRIDE[], args...)]
+        return String[abspath(ARTIFACTS_DIR_OVERRIDE[], args...)]
     end
 end
 
@@ -142,7 +142,7 @@ function load_overrides(;force::Bool = false)
                 else
                     overrides[:hash][hash] = mapping
                 end
-            elseif isa(mapping, Dict)
+            elseif isa(mapping, Dict{String, Any})
                 # Convert `k` into a uuid
                 uuid = try
                     Base.UUID(k)
