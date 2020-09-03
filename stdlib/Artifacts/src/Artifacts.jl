@@ -3,8 +3,8 @@ module Artifacts
 import Base: get, SHA1
 using Base.BinaryPlatforms, Base.TOML
 
-export artifact_exists, artifact_path, remove_artifact, verify_artifact,
-       artifact_meta, artifact_hash, find_artifacts_toml, @artifact_str
+export artifact_exists, artifact_path, artifact_meta, artifact_hash,
+       find_artifacts_toml, @artifact_str
 
 """
     parse_toml(path::String)
@@ -158,13 +158,13 @@ function load_overrides(;force::Bool = false)
                 end
 
                 # For each name in the mapping, update appropriately
-                for name in keys(mapping)
+                for (name, override_value) in keys(mapping)
                     # If the mapping for this name is the empty string, un-override it
-                    if mapping[name] == ""
+                    if override_value == ""
                         delete!(ovruuid[uuid], name)
                     else
                         # Otherwise, store it!
-                        ovruuid[uuid][name] = mapping[name]
+                        ovruuid[uuid][name] = override_value
                     end
                 end
             end
