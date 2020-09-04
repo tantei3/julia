@@ -40,18 +40,18 @@ function with_artifacts_directory(f::Function, artifacts_dir::String)
 end
 
 """
-    artifacts_dirs(args...)
+    artifacts_dirs(arg)
 
 Return a list of paths joined into all possible artifacts directories, as dictated by the
 current set of depot paths and the current artifact directory override via the method
 `with_artifacts_dir()`.
 """
-function artifacts_dirs(args...)
+function artifacts_dirs(arg)
     if ARTIFACTS_DIR_OVERRIDE[] === nothing
-        return String[abspath(depot, "artifacts", args...) for depot in Base.DEPOT_PATH]
+        return String[abspath(depot, "artifacts", args) for depot in Base.DEPOT_PATH]
     else
         # If we've been given an override, use _only_ that directory.
-        return String[abspath(ARTIFACTS_DIR_OVERRIDE[], args...)]
+        return String[abspath(ARTIFACTS_DIR_OVERRIDE[], args)]
     end
 end
 
@@ -104,11 +104,9 @@ function load_overrides(;force::Bool = false)
 
         function parse_mapping(mapping::String, name::String)
             if !isabspath(mapping) && !isempty(mapping)
-                try
-                    mapping = Base.SHA1(mapping)
-                catch e
+                mapping = tryparse(Base.SHA1, mapping)
+                if mapping === nothing
                     @error("Invalid override in '$(override_file)': entry '$(name)' must map to an absolute path or SHA1 hash!")
-                    rethrow()
                 end
             end
             return mapping
@@ -119,9 +117,8 @@ function load_overrides(;force::Bool = false)
 
         for (k, mapping) in depot_override_dict
             # First, parse the mapping. Is it an absolute path, a valid SHA1-hash, or neither?
-            try
-                mapping = parse_mapping(mapping, k)
-            catch
+            mapping = parse_mapping(mapping, k)
+            if mapping === nothing
                 @error("Invalid override in '$(override_file)': failed to parse entry `$(k)`")
                 continue
             end
@@ -129,9 +126,19 @@ function load_overrides(;force::Bool = false)
             # Next, determine if this is a hash override or a UUID/name override
             if isa(mapping, String) || isa(mapping, SHA1)
                 # if this mapping is a direct mapping (e.g. a String), store it as a hash override
-                hash = try
-                    Base.SHA1(hex2bytes(k))
-                catch
+                local hash_str
+                try
+                    hash_str = hex2bytes(k)
+                catch e
+                    if isa(e, InterruptException)
+                        rethrow(e)
+                    end
+                    @error("Invalid override in '$(override_file)': Invalid SHA1 hash '$(k)'")
+                    continue
+                end
+
+                hash = tryparse(Base.SHA1, hash_str)
+                if hash === nothing
                     @error("Invalid override in '$(override_file)': Invalid SHA1 hash '$(k)'")
                     continue
                 end
@@ -144,9 +151,8 @@ function load_overrides(;force::Bool = false)
                 end
             elseif isa(mapping, Dict{String, Any})
                 # Convert `k` into a uuid
-                uuid = try
-                    Base.UUID(k)
-                catch
+                uuid = tryparse(UUID, k)
+                if uuid === nothing
                     @error("Invalid override in '$(override_file)': Invalid UUID '$(k)'")
                     continue
                 end
@@ -167,6 +173,8 @@ function load_overrides(;force::Bool = false)
                         ovruuid[uuid][name] = override_value
                     end
                 end
+            else
+                @error("Invalid override in '$(override_file)': unknown mapping type for '$(k)'")
             end
         end
     end

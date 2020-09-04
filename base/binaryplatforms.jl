@@ -149,16 +149,16 @@ end
 # Simple equality definition; for compatibility testing, use `platforms_match()`
 Base.:(==)(a::AbstractPlatform, b::AbstractPlatform) = tags(a) == tags(b)
 
+const ARCHITECTURE_FLAGS = Dict(
+    "x86_64" => ["x86_64", "avx", "avx2", "avx512"],
+    "i686" => ["prescott"],
+    "armv7l" => ["armv7l", "neon", "vfp4"],
+    "armv6l" => ["generic"],
+    "aarch64" => ["armv8", "thunderx2", "carmel"],
+    "powerpc64le" => ["generic"],
+)
 function validate_tags(tags::Dict)
     throw_invalid_key(k) = throw(ArgumentError("Key \"$(k)\" cannot have value \"$(tags[k])\""))
-    ARCHITECTURE_FLAGS = Dict(
-        "x86_64" => ["x86_64", "avx", "avx2", "avx512"],
-        "i686" => ["prescott"],
-        "armv7l" => ["armv7l", "neon", "vfp4"],
-        "armv6l" => ["generic"],
-        "aarch64" => ["armv8", "thunderx2", "carmel"],
-        "powerpc64le" => ["generic"],
-    )
     # Validate `arch`
     if tags["arch"] ∉ keys(ARCHITECTURE_FLAGS)
         throw_invalid_key("arch")
@@ -392,6 +392,15 @@ julia> call_Abi(Platform("x86_64", "macos"))
 ```
 """
 call_abi(p::AbstractPlatform) = get(tags(p), "call_abi", nothing)
+    
+
+const platform_namess = Dict(
+    "linux" => "Linux",
+    "macos" => "macOS",
+    "windows" => "Windows",
+    "freebsd" => "FreeBSD",
+    nothing => "Unknown",
+)
 
 """
     platform_name(p::AbstractPlatform)
@@ -399,13 +408,6 @@ call_abi(p::AbstractPlatform) = get(tags(p), "call_abi", nothing)
 Get the "platform name" of the given platform, returning e.g. "Linux" or "Windows".
 """
 function platform_name(p::AbstractPlatform)
-    names = Dict(
-        "linux" => "Linux",
-        "macos" => "macOS",
-        "windows" => "Windows",
-        "freebsd" => "FreeBSD",
-        nothing => "Unknown",
-    )
     return names[os(p)]
 end
 
@@ -553,6 +555,47 @@ Sys.islinux(p::AbstractPlatform) = os(p) == "linux"
 Sys.iswindows(p::AbstractPlatform) = os(p) == "windows"
 Sys.isfreebsd(p::AbstractPlatform) = os(p) == "freebsd"
 Sys.isbsd(p::AbstractPlatform) = os(p) ∈ ("freebsd", "macos")
+    
+const arch_mapping = Dict(
+    "x86_64" => "(x86_|amd)64",
+    "i686" => "i\\d86",
+    "aarch64" => "(aarch64|arm64)",
+    "armv7l" => "arm(v7l)?", # if we just see `arm-linux-gnueabihf`, we assume it's `armv7l`
+    "armv6l" => "armv6l",
+    "powerpc64le" => "p(ower)?pc64le",
+)
+const os_mapping = Dict(
+    "macos" => "-apple-darwin[\\d\\.]*",
+    "freebsd" => "-(.*-)?freebsd[\\d\\.]*",
+    "windows" => "-w64-mingw32",
+    "linux" => "-(.*-)?linux",
+)
+const libc_mapping = Dict(
+    "libc_nothing" => "",
+    "glibc" => "-gnu",
+    "musl" => "-musl",
+)
+const call_abi_mapping = Dict(
+    "call_abi_nothing" => "",
+    "eabihf" => "eabihf",
+    "eabi" => "eabi",
+)
+const libgfortran_version_mapping = Dict(
+    "libgfortran_nothing" => "",
+    "libgfortran3" => "(-libgfortran3)|(-gcc4)", # support old-style `gccX` versioning
+    "libgfortran4" => "(-libgfortran4)|(-gcc7)",
+    "libgfortran5" => "(-libgfortran5)|(-gcc8)",
+)
+const libstdcxx_version_mapping = Dict{String,String}(
+    "libstdcxx_nothing" => "",
+    # This is sadly easier than parsing out the digit directly
+    ("libstdcxx$(idx)" => "-libstdcxx$(idx)" for idx in 18:26)...,
+)
+const cxxstring_abi_mapping = Dict(
+    "cxxstring_nothing" => "",
+    "cxx03" => "-cxx03",
+    "cxx11" => "-cxx11",
+)
 
 """
     parse(::Type{Platform}, triplet::AbstractString)
@@ -560,52 +603,11 @@ Sys.isbsd(p::AbstractPlatform) = os(p) ∈ ("freebsd", "macos")
 Parses a string platform triplet back into a `Platform` object.
 """
 function Base.parse(::Type{Platform}, triplet::AbstractString; validate_strict::Bool = false)
-    # We're going to build a mondo regex here to parse everything:
-    arch_mapping = Dict(
-        "x86_64" => "(x86_|amd)64",
-        "i686" => "i\\d86",
-        "aarch64" => "(aarch64|arm64)",
-        "armv7l" => "arm(v7l)?", # if we just see `arm-linux-gnueabihf`, we assume it's `armv7l`
-        "armv6l" => "armv6l",
-        "powerpc64le" => "p(ower)?pc64le",
-    )
-    os_mapping = Dict(
-        "macos" => "-apple-darwin[\\d\\.]*",
-        "freebsd" => "-(.*-)?freebsd[\\d\\.]*",
-        "windows" => "-w64-mingw32",
-        "linux" => "-(.*-)?linux",
-    )
-    libc_mapping = Dict(
-        "libc_nothing" => "",
-        "glibc" => "-gnu",
-        "musl" => "-musl",
-    )
-    call_abi_mapping = Dict(
-        "call_abi_nothing" => "",
-        "eabihf" => "eabihf",
-        "eabi" => "eabi",
-    )
-    libgfortran_version_mapping = Dict(
-        "libgfortran_nothing" => "",
-        "libgfortran3" => "(-libgfortran3)|(-gcc4)", # support old-style `gccX` versioning
-        "libgfortran4" => "(-libgfortran4)|(-gcc7)",
-        "libgfortran5" => "(-libgfortran5)|(-gcc8)",
-    )
-    libstdcxx_version_mapping = Dict{String,String}(
-        "libstdcxx_nothing" => "",
-        # This is sadly easier than parsing out the digit directly
-        ("libstdcxx$(idx)" => "-libstdcxx$(idx)" for idx in 18:26)...,
-    )
-    cxxstring_abi_mapping = Dict(
-        "cxxstring_nothing" => "",
-        "cxx03" => "-cxx03",
-        "cxx11" => "-cxx11",
-    )
-
     # Helper function to collapse dictionary of mappings down into a regex of
     # named capture groups joined by "|" operators
     c(mapping) = string("(",join(["(?<$k>$v)" for (k, v) in mapping], "|"), ")")
 
+    # We're going to build a mondo regex here to parse everything:
     triplet_regex = Regex(string(
         "^",
         # First, the core triplet; arch/os/libc/call_abi
@@ -705,13 +707,13 @@ function Base.tryparse(::Type{Platform}, triplet::AbstractString)
 end
 
 """
-    platform_dlext(p::AbstractPlatform = Platform())
+    platform_dlext(p::AbstractPlatform = HostPlatform())
 
 Return the dynamic library extension for the given platform, defaulting to the
 currently running platform.  E.g. returns "so" for a Linux-based platform,
 "dll" for a Windows-based platform, etc...
 """
-function platform_dlext(p::AbstractPlatform = Platform())
+function platform_dlext(p::AbstractPlatform = HostPlatform())
     if os(p) == "windows"
         return "dll"
     elseif os(p) == "macos"
@@ -891,18 +893,17 @@ function host_triplet()
     return str
 end
 
-# Cache the host platform value, and return it if someone asks for just `Platform()`.
+# Cache the host platform value, and return it if someone asks for just `HostPlatform()`.
 default_host_platform = HostPlatform(parse(Platform, host_triplet()))
 """
-    Platform()
+    HostPlatform()
 
 Return the `Platform` object that corresponds to the current host system, with all
 relevant comparison strategies set to host platform mode.  This is equivalent to:
 
     HostPlatform(parse(Platform, Base.BinaryPlatforms.host_triplet()))
 """
-function Platform()
-    global default_host_platform
+function HostPlatform()
     return default_host_platform::Platform
 end
 
@@ -969,7 +970,7 @@ end
 platforms_match(a::AbstractString, b::AbstractString) = platforms_match(parse(Platform, a), parse(Platform, b))
 
 """
-    select_platform(download_info::Dict, platform::AbstractPlatform = Platform())
+    select_platform(download_info::Dict, platform::AbstractPlatform = HostPlatform())
 
 Given a `download_info` dictionary mapping platforms to some value, choose
 the value whose key best matches `platform`, returning `nothing` if no matches
@@ -979,7 +980,7 @@ Platform attributes such as architecture, libc, calling ABI, etc... must all
 match exactly, however attributes such as compiler ABI can have wildcards
 within them such as `nothing` which matches any version of GCC.
 """
-function select_platform(download_info::Dict, platform::AbstractPlatform = Platform())
+function select_platform(download_info::Dict, platform::AbstractPlatform = HostPlatform())
     ps = collect(filter(p -> platforms_match(p, platform), keys(download_info)))
 
     if isempty(ps)
