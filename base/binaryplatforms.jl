@@ -392,7 +392,6 @@ julia> call_Abi(Platform("x86_64", "macos"))
 ```
 """
 call_abi(p::AbstractPlatform) = get(tags(p), "call_abi", nothing)
-    
 
 const platform_namess = Dict(
     "linux" => "Linux",
@@ -555,7 +554,7 @@ Sys.islinux(p::AbstractPlatform) = os(p) == "linux"
 Sys.iswindows(p::AbstractPlatform) = os(p) == "windows"
 Sys.isfreebsd(p::AbstractPlatform) = os(p) == "freebsd"
 Sys.isbsd(p::AbstractPlatform) = os(p) ∈ ("freebsd", "macos")
-    
+
 const arch_mapping = Dict(
     "x86_64" => "(x86_|amd)64",
     "i686" => "i\\d86",
