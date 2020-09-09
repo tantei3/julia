@@ -32,11 +32,11 @@ Example:
 struct Platform <: AbstractPlatform
     tags::Dict{String,String}
     # The "compare strategy" allows selective overriding on how a tag is compared
-    compare_strategies::Dict{String,Any}
+    compare_strategies::Dict{String,Function}
 
     function Platform(arch::String, os::String;
                       validate_strict::Bool = false,
-                      compare_strategies::Dict{String,Any} = Dict{String,Any}(),
+                      compare_strategies::Dict{String,Function} = Dict{String,Function}(),
                       kwargs...)
         # A wee bit of normalization
         os = lowercase(os)
@@ -393,7 +393,7 @@ julia> call_Abi(Platform("x86_64", "macos"))
 """
 call_abi(p::AbstractPlatform) = get(tags(p), "call_abi", nothing)
 
-const platform_namess = Dict(
+const platform_names = Dict(
     "linux" => "Linux",
     "macos" => "macOS",
     "windows" => "Windows",
@@ -407,7 +407,7 @@ const platform_namess = Dict(
 Get the "platform name" of the given platform, returning e.g. "Linux" or "Windows".
 """
 function platform_name(p::AbstractPlatform)
-    return names[os(p)]
+    return platform_names[os(p)]
 end
 
 function VNorNothing(d::Dict, key)
@@ -723,7 +723,7 @@ function platform_dlext(p::AbstractPlatform = HostPlatform())
 end
 
 """
-    parse_dl_name_version(path::AbstractString, platform::AbstractPlatform)
+    parse_dl_name_version(path::String, platform::AbstractPlatform)
 
 Given a path to a dynamic library, parse out what information we can
 from the filename.  E.g. given something like "lib/libfoo.so.3.2",
@@ -732,7 +732,7 @@ valid dynamic library, this method throws an error.  If no soversion
 can be extracted from the filename, as in "libbar.so" this method
 returns `"libbar", nothing`.
 """
-function parse_dl_name_version(path::AbstractString, os::String)
+function parse_dl_name_version(path::String, os::String)
     # Use an extraction regex that matches the given OS
     local dlregex
     if os == "windows"
@@ -760,6 +760,11 @@ function parse_dl_name_version(path::AbstractString, os::String)
         version = VersionNumber(strip(version, '.'))
     end
     return name, version
+end
+
+# Adapter for `AbstractString`
+function parse_dl_name_version(path::AbstractString, os::AbstractString)
+    return parse_dl_name_version(string(path)::String, string(os)::String)
 end
 
 """
@@ -960,13 +965,19 @@ function platforms_match(a::AbstractPlatform, b::AbstractPlatform)
     return true
 end
 
-function platforms_match(a::AbstractString, b::AbstractPlatform)
+function platforms_match(a::String, b::AbstractPlatform)
     return platforms_match(parse(Platform, a), b)
 end
-function platforms_match(a::AbstractPlatform, b::AbstractString)
+function platforms_match(a::AbstractPlatform, b::String)
     return platforms_match(a, parse(Platform, b))
 end
-platforms_match(a::AbstractString, b::AbstractString) = platforms_match(parse(Platform, a), parse(Platform, b))
+platforms_match(a::String, b::String) = platforms_match(parse(Platform, a), parse(Platform, b))
+
+# Adapters for AbstractString backedge avoidance
+platforms_match(a::AbstractString, b::AbstractPlatform) = platforms_match(string(a)::String, b)
+platforms_match(a::AbstractPlatform, b::AbstractString) = platforms_match(a, string(b)::String)
+platforms_match(a::AbstractString, b::AbstractString) = platforms_match(string(a)::String, string(b)::String)
+
 
 """
     select_platform(download_info::Dict, platform::AbstractPlatform = HostPlatform())
