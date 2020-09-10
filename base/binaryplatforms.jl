@@ -388,7 +388,7 @@ platforms with no explicit `call_abi` choices (which is most platforms).
 julia> call_abi(Platform("armv7l", "Linux"))
 "eabihf"
 
-julia> call_Abi(Platform("x86_64", "macos"))
+julia> call_abi(Platform("x86_64", "macos"))
 ```
 """
 call_abi(p::AbstractPlatform) = get(tags(p), "call_abi", nothing)
