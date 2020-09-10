@@ -40,18 +40,18 @@ function with_artifacts_directory(f::Function, artifacts_dir::String)
 end
 
 """
-    artifacts_dirs(arg)
+    artifacts_dirs(args...)
 
 Return a list of paths joined into all possible artifacts directories, as dictated by the
 current set of depot paths and the current artifact directory override via the method
 `with_artifacts_dir()`.
 """
-function artifacts_dirs(arg)
+function artifacts_dirs(args...)
     if ARTIFACTS_DIR_OVERRIDE[] === nothing
-        return String[abspath(depot, "artifacts", args) for depot in Base.DEPOT_PATH]
+        return String[abspath(depot, "artifacts", args...) for depot in Base.DEPOT_PATH]
     else
         # If we've been given an override, use _only_ that directory.
-        return String[abspath(ARTIFACTS_DIR_OVERRIDE[], args)]
+        return String[abspath(ARTIFACTS_DIR_OVERRIDE[], args...)]
     end
 end
 
@@ -354,7 +354,7 @@ process_overrides(artifact_dict::Dict, pkg_uuid::Nothing) = nothing
 
 """
     artifact_meta(name::String, artifacts_toml::String;
-                  platform::Platform = Platform(),
+                  platform::AbstractPlatform = HostPlatform(),
                   pkg_uuid::Union{Base.UUID,Nothing}=nothing)
 
 Get metadata about a given artifact (identified by name) stored within the given
@@ -365,7 +365,7 @@ most appropriate mapping.  If none is found, return `nothing`.
     This function requires at least Julia 1.3.
 """
 function artifact_meta(name::String, artifacts_toml::String;
-                       platform::Platform = Platform(),
+                       platform::AbstractPlatform = HostPlatform(),
                        pkg_uuid::Union{Base.UUID,Nothing}=nothing)
     if !isfile(artifacts_toml)
         return nothing
@@ -377,7 +377,7 @@ function artifact_meta(name::String, artifacts_toml::String;
 end
 
 function artifact_meta(name::String, artifact_dict::Dict, artifacts_toml::String;
-                       platform::Platform = Platform())
+                       platform::AbstractPlatform = HostPlatform())
     if !haskey(artifact_dict, name)
         return nothing
     end
@@ -414,7 +414,7 @@ collapsed artifact.  Returns `nothing` if no mapping can be found.
     This function requires at least Julia 1.3.
 """
 function artifact_hash(name::String, artifacts_toml::String;
-                       platform::Platform = Platform(),
+                       platform::AbstractPlatform = HostPlatform(),
                        pkg_uuid::Union{Base.UUID,Nothing}=nothing)
     meta = artifact_meta(name, artifacts_toml; platform=platform)
     if meta === nothing
@@ -617,7 +617,6 @@ end
 
 # Support `AbstractString`s, but avoid compilers needing to track backedges for callers
 # of these functions in case a user defines a new type that is `<: AbstractString`
-parse_toml(path::AbstractString) = parse_toml(string(path))
 with_artifacts_directory(f::Function, artifacts_dir::AbstractString) =
     with_artifacts_directory(f, string(artifacts_dir))
 query_override(pkg::Base.UUID, artifact_name::AbstractString; kwargs...) =
