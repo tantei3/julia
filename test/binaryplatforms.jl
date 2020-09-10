@@ -67,7 +67,7 @@ end
     @test platform_dlext(P("armv7l", "windows")) == "dll"
     @test platform_dlext(P("x86_64", "freebsd")) == "so"
     @test platform_dlext(P("aarch64", "macos")) == "dylib"
-    @test platform_dlext() == platform_dlext(Platform())
+    @test platform_dlext() == platform_dlext(HostPlatform())
 
     # wordsize()
     @test wordsize(P("i686", "linux")) == wordsize(P("armv7l", "windows")) == 32
@@ -105,7 +105,7 @@ end
     t = tags(P("x86_64", "linux"))
     @test all(haskey.(Ref(t), ("arch", "os", "libc")))
     @test haskey(tags(P("x86_64", "linux"; customtag="foo")), "customtag")
-    @test tags(Platform())["julia_version"] == string(VERSION.major, ".", VERSION.minor, ".", VERSION.patch)
+    @test tags(HostPlatform())["julia_version"] == string(VERSION.major, ".", VERSION.minor, ".", VERSION.patch)
 end
 
 @testset "Triplet parsing" begin
@@ -156,10 +156,10 @@ end
     @test_throws ArgumentError R("x86_64-linux-gnu-cuda+version")
 
     # Round-trip our little homie through `triplet()`
-    @test parse(Platform, triplet(Platform())) == Platform()
+    @test parse(Platform, triplet(HostPlatform())) == HostPlatform()
 
     # Also test round-tripping through `repr()`:
-    @test eval(Meta.parse(repr(Platform()))) == Platform()
+    @test eval(Meta.parse(repr(HostPlatform()))) == HostPlatform()
 end
 
 @testset "platforms_match()" begin
